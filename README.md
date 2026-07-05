@@ -246,8 +246,3 @@ The repository includes pre-configured deployment settings for hosting on **Rend
 
 ---
 
-## 📄 License & Citation
-
-This project was developed as a 6th Semester Mini-Project focused on innovative medical device software engineering and multimodal clinical screening.
-
-Distributed under the **MIT License**. See `LICENSE` for more information.
