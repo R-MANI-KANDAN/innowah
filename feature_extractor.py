@@ -3,7 +3,7 @@ INNOWAH 2026 - Feature Extractor
 Maps raw software (cognitive test) and hardware (ESP32 sensor) data
 into a fixed-length feature vector for the ML model.
 
-Feature Vector (31 features total):
+Feature Vector (33 features total):
   Software / Cognitive [14]:
     [0]  immediate_recall          (0–1)
     [1]  delayed_recall            (0–1)
@@ -28,18 +28,20 @@ Feature Vector (31 features total):
     [17] postural_sway_norm        (0–1, inverted)
 
     PPG/HRV [5]:
-    [18] rmssd_norm                (0–1)
-    [19] sdnn_norm                 (0–1)
-    [20] lf_hf_ratio_norm          (0–1, inverted)
-    [21] spo2_norm                 (0–1)
-    [22] desat_events_norm         (0–1, inverted)
+    [18] heart_rate_norm            (0–1)
+    [19] rmssd_norm                (0–1)
+    [20] sdnn_norm                 (0–1)
+    [21] lf_hf_ratio_norm          (0–1, inverted)
+    [22] spo2_norm                 (0–1)
 
-    EEG [5]:
+    EEG [4]:
     [23] alpha_power_norm          (0–1)
     [24] theta_power_norm          (0–1, inverted)
     [25] delta_power_norm          (0–1, inverted)
     [26] theta_alpha_ratio_norm    (0–1, inverted)
-    [27] dominant_frequency_norm   (0–1)
+
+    Temperature [1]:
+    [27] skin_temp_norm            (0–1)
 
     Activity [1]:
     [28] daily_steps_norm          (0–1)
@@ -66,18 +68,20 @@ class FeatureExtractor:
         "postural_sway":       {"normal": (0.0, 3.0), "mild": (3.0, 5.0), "high": (5.0, 100)},
 
         # PPG/HRV
+        "heart_rate":          {"normal": (60, 100),   "mild": (50, 60),    "high": (0.0, 50)},
         "rmssd":               {"normal": (25, 50),    "mild": (15, 25),    "high": (0.0, 15)},
         "sdnn":                {"normal": (30, 60),    "mild": (20, 30),    "high": (0.0, 20)},
         "lf_hf_ratio":         {"normal": (1.0, 2.0),  "mild": (2.0, 3.0),  "high": (3.0, 10)},
         "spo2":                {"normal": (95, 100),   "mild": (92, 95),    "high": (0.0, 92)},
-        "desat_events":        {"normal": (0, 2),      "mild": (3, 5),      "high": (6, 100)},
 
         # EEG
         "alpha_power":         {"normal": (25, 40),    "mild": (20, 25),    "high": (0.0, 20)},
         "theta_power":         {"normal": (10, 20),    "mild": (20, 25),    "high": (25, 100)},
         "delta_power":         {"normal": (5, 15),     "mild": (15, 20),    "high": (20, 100)},
         "theta_alpha_ratio":   {"normal": (0.5, 0.9),  "mild": (1.0, 1.3),  "high": (1.5, 10)},
-        "dominant_frequency":  {"normal": (9.0, 10.5), "mild": (8.0, 9.0),  "high": (0.0, 8.0)},
+
+        # Temperature
+        "skin_temp":           {"normal": (33.0, 37.0),"mild": (31.0, 33.0),"high": (0.0, 31.0)},
         "spo2_activity":       {"normal": (5000, 8000),"mild": (3000, 4000),"high": (0.0, 3000)},
     }
 
@@ -87,16 +91,16 @@ class FeatureExtractor:
         "stride_variability": (0.0,   10.0,  False),
         "turning_velocity":   (0.0,   200.0, True),
         "postural_sway":      (0.0,   10.0,  False),
+        "heart_rate":         (40.0,  120.0, True),
         "rmssd":              (0.0,   80.0,  True),
         "sdnn":               (0.0,   100.0, True),
         "lf_hf_ratio":        (0.0,   5.0,   False),
         "spo2":               (85.0,  100.0, True),
-        "desat_events":       (0.0,   10.0,  False),
         "alpha_power":        (0.0,   50.0,  True),
         "theta_power":        (0.0,   50.0,  False),
         "delta_power":        (0.0,   40.0,  False),
         "theta_alpha_ratio":  (0.0,   3.0,   False),
-        "dominant_frequency": (5.0,   12.0,  True),
+        "skin_temp":          (28.0,  38.0,  True),
         "daily_steps":        (0.0,   10000, True),
 
         # Cognitive
@@ -119,7 +123,7 @@ class FeatureExtractor:
 
     def extract(self, software_data: dict, hardware_data: dict = None) -> np.ndarray:
         """
-        Extract a 35-dimensional feature vector.
+        Extract a 33-dimensional feature vector.
         Missing values are imputed with 0.5 (midpoint / uncertain).
         """
         sw = software_data or {}
@@ -128,6 +132,7 @@ class FeatureExtractor:
         imu  = hw.get("imu", {})
         ppg  = hw.get("ppg", {})
         eeg  = hw.get("eeg", {})
+        temp = hw.get("temperature", {})
 
         def get(d, key, default=None):
             v = d.get(key, default)
@@ -164,27 +169,29 @@ class FeatureExtractor:
         f_sway         = self.normalize(get(imu, "postural_sway", 2.0), "postural_sway")
 
         # PPG/HRV
+        f_heart_rate   = self.normalize(get(ppg, "heart_rate", 72), "heart_rate")
         f_rmssd        = self.normalize(get(ppg, "rmssd", 35), "rmssd")
         f_sdnn         = self.normalize(get(ppg, "sdnn", 45), "sdnn")
         f_lf_hf        = self.normalize(get(ppg, "lf_hf_ratio", 1.5), "lf_hf_ratio")
         f_spo2         = self.normalize(get(ppg, "spo2", 97), "spo2")
-        f_desat        = self.normalize(get(ppg, "desat_events", 0), "desat_events")
 
         # EEG
         f_alpha        = self.normalize(get(eeg, "alpha_power", 30), "alpha_power")
         f_theta        = self.normalize(get(eeg, "theta_power", 15), "theta_power")
         f_delta        = self.normalize(get(eeg, "delta_power", 10), "delta_power")
         f_ta_ratio     = self.normalize(get(eeg, "theta_alpha_ratio", 0.7), "theta_alpha_ratio")
-        f_dom_freq     = self.normalize(get(eeg, "dominant_frequency", 10.0), "dominant_frequency")
+
+        # Temperature
+        f_skin_temp    = self.normalize(get(temp, "skin_temp", 34.0), "skin_temp")
 
         # Activity
         f_steps        = self.normalize(get(imu, "step_count", 5000), "daily_steps")
 
         hw_features = np.array([
             f_gait_speed, f_stride_var, f_turn_vel, f_sway,
-            f_rmssd, f_sdnn, f_lf_hf, f_spo2, f_desat,
+            f_heart_rate, f_rmssd, f_sdnn, f_lf_hf, f_spo2,
             f_alpha, f_theta, f_delta, f_ta_ratio,
-            f_dom_freq, f_steps
+            f_skin_temp, f_steps
         ], dtype=np.float32)
 
         # ── Aggregate scores (60:40 rule from document) ──────────────
@@ -213,10 +220,12 @@ class FeatureExtractor:
             # IMU (4)
             "gait_speed", "stride_variability", "turning_velocity", "postural_sway",
             # PPG (5)
-            "rmssd", "sdnn", "lf_hf_ratio", "spo2", "desat_events",
-            # EEG (5)
+            "heart_rate", "rmssd", "sdnn", "lf_hf_ratio", "spo2",
+            # EEG (4)
             "alpha_power", "theta_power", "delta_power",
-            "theta_alpha_ratio", "dominant_frequency",
+            "theta_alpha_ratio",
+            # Temperature (1)
+            "skin_temp",
             # Activity (1)
             "daily_steps",
             # Aggregates (2)
@@ -227,9 +236,9 @@ class FeatureExtractor:
         """Split feature vector into domain-level scores for explainability."""
         fv = np.array(feature_vector)
         return {
-            "memory":      float(np.mean(fv[[0,1,2,3,4, 9,21,22,23]])),
-            "reasoning":   float(np.mean(fv[[5,6,7,8,  14,15,16,24,25]])),
-            "visuospatial":float(np.mean(fv[[17,26,     ]])),
-            "language":    float(np.mean(fv[[9,10,11,   27]])),
-            "behavior":    float(np.mean(fv[[12,13,     18,19,20,28]])),
+            "memory":      float(np.mean(fv[[0,1,2,3,4, 9]])),
+            "reasoning":   float(np.mean(fv[[5,6,7,8,  14,15,16]])),
+            "visuospatial":float(np.mean(fv[[17,26]])),
+            "language":    float(np.mean(fv[[9,10,11]])),
+            "behavior":    float(np.mean(fv[[12,13, 18,19,20,21,27,28]])),
         }

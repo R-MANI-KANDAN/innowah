@@ -113,14 +113,14 @@ def save_hw_params_to_firestore(uid, hardware_data):
         # ── PPG ──
         if 'ppg' in hardware_data:
             ppg = hardware_data['ppg']
-            for k in ['heart_rate', 'spo2', 'rmssd', 'sdnn', 'lf_hf_ratio', 'desat_events']:
+            for k in ['heart_rate', 'spo2', 'rmssd', 'sdnn', 'lf_hf_ratio']:
                 if k in ppg and ppg[k] is not None:
                     updates[f'hw_params.ppg.{k}'] = ppg[k]
                     
         # ── EEG ──
         if 'eeg' in hardware_data:
             eeg = hardware_data['eeg']
-            for k in ['alpha_power', 'theta_power', 'delta_power', 'theta_alpha_ratio', 'dominant_frequency']:
+            for k in ['alpha_power', 'theta_power', 'delta_power', 'theta_alpha_ratio']:
                 if k in eeg and eeg[k] is not None:
                     updates[f'hw_params.eeg.{k}'] = eeg[k]
                     
@@ -314,16 +314,16 @@ NORM_PARAMS = {
     "stride_variability":  (0.0,    10.0,  False),
     "turning_velocity":    (0.0,    200.0, True),
     "postural_sway":       (0.0,    10.0,  False),
+    "heart_rate":          (40.0,   120.0, True),
     "rmssd":               (0.0,    80.0,  True),
     "sdnn":                (0.0,    100.0, True),
     "lf_hf_ratio":         (0.0,    5.0,   False),
     "spo2":                (85.0,   100.0, True),
-    "desat_events":        (0.0,    10.0,  False),
     "alpha_power":         (0.0,    50.0,  True),
     "theta_power":         (0.0,    50.0,  False),
     "delta_power":         (0.0,    40.0,  False),
     "theta_alpha_ratio":   (0.0,    3.0,   False),
-    "dominant_frequency":  (5.0,    12.0,  True),
+    "skin_temp":           (28.0,   38.0,  True),
     "daily_steps":         (0.0,    10000, True),
     "reaction_time":       (200.0,  2000.0,False),
     "verbal_fluency":      (0.0,    30.0,  True),
@@ -360,6 +360,7 @@ def extract_innowah_features(software_data: dict, hardware_data: dict) -> np.nda
     imu = hw.get("imu",  {})
     ppg = hw.get("ppg",  {})
     eeg = hw.get("eeg",  {})
+    temp = hw.get("temperature", {})
 
     # Map existing cognitive game scores into the vector when available
     scores = get_session_scores()
@@ -400,7 +401,7 @@ def extract_innowah_features(software_data: dict, hardware_data: dict) -> np.nda
         iadl, mood_filter
     ], dtype=np.float32)
 
-    # ── Hardware features [14–32] ────────────────────────────────────────────
+    # ── Hardware features [14–28] ────────────────────────────────────────────
     hw_vec = np.array([
         # IMU [14–17]
         _norm(_get(imu, "gait_speed",          1.1),   "gait_speed"),
@@ -408,17 +409,18 @@ def extract_innowah_features(software_data: dict, hardware_data: dict) -> np.nda
         _norm(_get(imu, "turning_velocity",    130),   "turning_velocity"),
         _norm(_get(imu, "postural_sway",       2.0),   "postural_sway"),
         # PPG/HRV [18–22]
+        _norm(_get(ppg, "heart_rate",          72),    "heart_rate"),
         _norm(_get(ppg, "rmssd",               35),    "rmssd"),
         _norm(_get(ppg, "sdnn",                45),    "sdnn"),
         _norm(_get(ppg, "lf_hf_ratio",         1.5),   "lf_hf_ratio"),
         _norm(_get(ppg, "spo2",                97),    "spo2"),
-        _norm(_get(ppg, "desat_events",        0),     "desat_events"),
-        # EEG [23–27]
+        # EEG [23–26]
         _norm(_get(eeg, "alpha_power",         30),    "alpha_power"),
         _norm(_get(eeg, "theta_power",         15),    "theta_power"),
         _norm(_get(eeg, "delta_power",         10),    "delta_power"),
         _norm(_get(eeg, "theta_alpha_ratio",   0.7),   "theta_alpha_ratio"),
-        _norm(_get(eeg, "dominant_frequency",  10.0),  "dominant_frequency"),
+        # Temperature [27]
+        _norm(_get(temp, "skin_temp",          34.0),  "skin_temp"),
         # Activity [28]
         _norm(_get(imu, "step_count",          5000),  "daily_steps"),
     ], dtype=np.float32)
@@ -443,15 +445,16 @@ CLINICAL_RULES = [
     (15, "stride_variability",  0.40, 0.60, "higher_worse"),
     (16, "turning_velocity",    0.55, 0.40, "lower_worse"),
     (17, "postural_sway",       0.50, 0.70, "higher_worse"),
-    (18, "rmssd",               0.31, 0.19, "lower_worse"),
-    (19, "sdnn",                0.30, 0.20, "lower_worse"),
-    (20, "lf_hf_ratio",         0.60, 0.80, "higher_worse"),
-    (21, "spo2",                0.67, 0.47, "lower_worse"),
+    (18, "heart_rate",          0.40, 0.25, "lower_worse"),
+    (19, "rmssd",               0.31, 0.19, "lower_worse"),
+    (20, "sdnn",                0.30, 0.20, "lower_worse"),
+    (21, "lf_hf_ratio",         0.60, 0.80, "higher_worse"),
+    (22, "spo2",                0.67, 0.47, "lower_worse"),
     (23, "alpha_power",         0.50, 0.40, "lower_worse"),
     (24, "theta_power",         0.50, 0.60, "higher_worse"),
     (25, "delta_power",         0.50, 0.63, "higher_worse"),
     (26, "theta_alpha_ratio",   0.47, 0.57, "higher_worse"),
-    (27, "dominant_frequency",  0.57, 0.43, "lower_worse"),
+    (27, "skin_temp",           0.50, 0.30, "lower_worse"),
     (0,  "immediate_recall",    0.75, 0.55, "lower_worse"),
     (1,  "delayed_recall",      0.70, 0.50, "lower_worse"),
     (3,  "retention_ratio",     0.70, 0.50, "lower_worse"),
@@ -460,11 +463,11 @@ CLINICAL_RULES = [
 ]
 
 DOMAIN_INDICES = {
-    "memory":       [0, 1, 2, 3, 4, 18, 19, 23, 24, 25],
-    "reasoning":    [5, 6, 7, 8, 14, 15, 16, 26, 27],
+    "memory":       [0, 1, 2, 3, 4, 19, 20, 23, 24, 25],
+    "reasoning":    [5, 6, 7, 8, 14, 15, 16, 26],
     "visuospatial": [17, 26],
-    "language":     [9, 10, 11, 27],
-    "behavior":     [12, 13, 20, 21, 22, 28],
+    "language":     [9, 10, 11],
+    "behavior":     [12, 13, 18, 21, 22, 27, 28],
 }
 
 def run_innowah_inference(feature_vector: np.ndarray) -> dict:
@@ -899,9 +902,9 @@ def receive_hardware_data():
       "imu":  { "gait_speed": 1.1, "stride_variability": 2.4, "turning_velocity": 130,
                 "postural_sway": 2.0, "step_count": 3200, "daily_activity_min": 24.5 },
       "ppg":  { "heart_rate": 72, "spo2": 97.5, "rmssd": 35.2, "sdnn": 44.1,
-                "lf_hf_ratio": 1.6, "avg_spo2": 97.2, "desat_events": 0 },
+                "lf_hf_ratio": 1.6, "avg_spo2": 97.2 },
       "eeg":  { "alpha_power": 30.2, "theta_power": 14.1, "delta_power": 9.8,
-                "beta_power": 19.5, "theta_alpha_ratio": 0.47, "dominant_frequency": 10.1,
+                "beta_power": 19.5, "theta_alpha_ratio": 0.47,
                 "signal_entropy": 1.85, "posterior_alpha": 29.8 },
       "temperature": { "skin_temp": 35.5, "ambient_temp": 28.0 }
     }
@@ -1078,12 +1081,10 @@ def export_data():
             "RMSSD": ppg.get("rmssd"),
             "SDNN": ppg.get("sdnn"),
             "LF/HF Ratio": ppg.get("lf_hf_ratio"),
-            "Desat Events": ppg.get("desat_events"),
             "Alpha Power": eeg.get("alpha_power"),
             "Theta Power": eeg.get("theta_power"),
             "Delta Power": eeg.get("delta_power"),
             "Theta/Alpha Ratio": eeg.get("theta_alpha_ratio"),
-            "Dominant Frequency": eeg.get("dominant_frequency"),
             "Skin Temp (°C)": temp.get("skin_temp"),
             "Ambient Temp (°C)": temp.get("ambient_temp"),
         }

@@ -316,10 +316,10 @@
                         <div class="hm-value" id="hw-gait">--</div>
                         <div class="hm-label">Gait Speed (m/s)</div>
                     </div>
-                    <div class="hw-metric-card hm-eeg">
-                        <div class="hm-icon">〰️</div>
-                        <div class="hm-value" id="hw-dom-freq">--</div>
-                        <div class="hm-label">Dominant Freq (Hz)</div>
+                    <div class="hw-metric-card hm-ppg">
+                        <div class="hm-icon">🌡️</div>
+                        <div class="hm-value" id="hw-skin-temp">--</div>
+                        <div class="hm-label">Body Temp (°C)</div>
                     </div>
                     <div class="hw-metric-card hm-steps">
                         <div class="hm-icon">👣</div>
@@ -458,7 +458,7 @@
                 <!-- Hardware Parameters -->
                 <div class="ml-group">
                     <div class="ml-group-label">📡 Hardware / Sensor Parameters (15)</div>
-                    <div class="ml-group-sub">From ESP32 Device (IMU, PPG/HRV, EEG)</div>
+                    <div class="ml-group-sub">From ESP32 Device (IMU, PPG/HRV, EEG, Temperature)</div>
                     <div class="ml-params-grid" id="hw-params-grid">
                         <div class="ml-param-row"><span class="mlp-name">Gait Speed</span>
                             <div class="mlp-bar-track">
@@ -480,6 +480,11 @@
                                 <div class="mlp-bar-fill mlp-teal" id="mlp-postural_sway"></div>
                             </div><span class="mlp-val" id="mlv-postural_sway">–</span>
                         </div>
+                        <div class="ml-param-row"><span class="mlp-name">Heart Rate</span>
+                            <div class="mlp-bar-track">
+                                <div class="mlp-bar-fill mlp-coral" id="mlp-heart_rate"></div>
+                            </div><span class="mlp-val" id="mlv-heart_rate">–</span>
+                        </div>
                         <div class="ml-param-row"><span class="mlp-name">RMSSD</span>
                             <div class="mlp-bar-track">
                                 <div class="mlp-bar-fill mlp-coral" id="mlp-rmssd"></div>
@@ -499,11 +504,6 @@
                             <div class="mlp-bar-track">
                                 <div class="mlp-bar-fill mlp-coral" id="mlp-spo2"></div>
                             </div><span class="mlp-val" id="mlv-spo2">–</span>
-                        </div>
-                        <div class="ml-param-row"><span class="mlp-name">Desat Events</span>
-                            <div class="mlp-bar-track">
-                                <div class="mlp-bar-fill mlp-coral" id="mlp-desat_events"></div>
-                            </div><span class="mlp-val" id="mlv-desat_events">–</span>
                         </div>
                         <div class="ml-param-row"><span class="mlp-name">Alpha Power</span>
                             <div class="mlp-bar-track">
@@ -525,10 +525,10 @@
                                 <div class="mlp-bar-fill mlp-plum" id="mlp-theta_alpha_ratio"></div>
                             </div><span class="mlp-val" id="mlv-theta_alpha_ratio">–</span>
                         </div>
-                        <div class="ml-param-row"><span class="mlp-name">Dominant Frequency</span>
+                        <div class="ml-param-row"><span class="mlp-name">Body Temperature</span>
                             <div class="mlp-bar-track">
-                                <div class="mlp-bar-fill mlp-plum" id="mlp-dominant_frequency"></div>
-                            </div><span class="mlp-val" id="mlv-dominant_frequency">–</span>
+                                <div class="mlp-bar-fill mlp-amber" id="mlp-skin_temp"></div>
+                            </div><span class="mlp-val" id="mlv-skin_temp">–</span>
                         </div>
                         <div class="ml-param-row"><span class="mlp-name">Daily Steps</span>
                             <div class="mlp-bar-track">
@@ -986,7 +986,8 @@
                     document.getElementById('hw-spo2').textContent = ppg.spo2 != null ? ppg.spo2 : '--';
                     document.getElementById('hw-alpha').textContent = eeg.alpha_power != null ? Math.round(eeg.alpha_power * 10) / 10 : '--';
                     document.getElementById('hw-gait').textContent = imu.gait_speed != null ? imu.gait_speed : '--';
-                    document.getElementById('hw-dom-freq').textContent = eeg.dominant_frequency != null ? Math.round(eeg.dominant_frequency * 10) / 10 : '--';
+                    const tempData = hw.temperature || {};
+                    document.getElementById('hw-skin-temp').textContent = tempData.skin_temp != null ? Math.round(tempData.skin_temp * 10) / 10 : '--';
                     document.getElementById('hw-steps').textContent = imu.step_count != null ? imu.step_count : '--';
                     document.getElementById('hw-status-text').textContent = 'Device Online';
                     document.getElementById('hw-status-pill').classList.add('hw-online');
@@ -1073,16 +1074,16 @@
                         { key: 'stride_variability', src: imu, max: 10, invert: true },
                         { key: 'turning_velocity', src: imu, max: 200 },
                         { key: 'postural_sway', src: imu, max: 10, invert: true },
+                        { key: 'heart_rate', src: ppg, max: 120 },
                         { key: 'rmssd', src: ppg, max: 80 },
                         { key: 'sdnn', src: ppg, max: 100 },
                         { key: 'lf_hf_ratio', src: ppg, max: 5, invert: true },
                         { key: 'spo2', src: ppg, max: 100 },
-                        { key: 'desat_events', src: ppg, max: 10, invert: true },
                         { key: 'alpha_power', src: eeg, max: 50 },
                         { key: 'theta_power', src: eeg, max: 50, invert: true },
                         { key: 'delta_power', src: eeg, max: 40, invert: true },
                         { key: 'theta_alpha_ratio', src: eeg, max: 3, invert: true },
-                        { key: 'dominant_frequency', src: eeg, max: 12 },
+                        { key: 'skin_temp', src: (hw.temperature || {}), max: 38 },
                         { key: 'step_count', src: imu, max: 10000 },
                     ];
                     hwParams.forEach(p => {

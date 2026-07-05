@@ -27,16 +27,18 @@ class InnowahInferenceEngine:
         (16, "turning_velocity",    0.55, 0.40, "lower_worse"),
         (17, "postural_sway",       0.70, 0.50, "higher_worse"),
         # PPG
-        (18, "rmssd",               0.31, 0.19, "lower_worse"),
-        (19, "sdnn",                0.30, 0.20, "lower_worse"),
-        (20, "lf_hf_ratio",         0.80, 0.60, "higher_worse"),
-        (21, "spo2",                0.67, 0.47, "lower_worse"),
+        (18, "heart_rate",          0.40, 0.25, "lower_worse"),
+        (19, "rmssd",               0.31, 0.19, "lower_worse"),
+        (20, "sdnn",                0.30, 0.20, "lower_worse"),
+        (21, "lf_hf_ratio",         0.80, 0.60, "higher_worse"),
+        (22, "spo2",                0.67, 0.47, "lower_worse"),
         # EEG
         (23, "alpha_power",         0.50, 0.40, "lower_worse"),
         (24, "theta_power",         0.60, 0.50, "higher_worse"),
         (25, "delta_power",         0.625,0.50, "higher_worse"),
         (26, "theta_alpha_ratio",   0.467,0.567,"higher_worse"),
-        (27, "dominant_frequency",  0.571,0.429,"lower_worse"),
+        # Temperature
+        (27, "skin_temp",           0.50, 0.30, "lower_worse"),
         # Cognitive
         (0,  "immediate_recall",    0.7,  0.5,  "lower_worse"),
         (1,  "delayed_recall",      0.7,  0.5,  "lower_worse"),
@@ -179,11 +181,11 @@ class InnowahInferenceEngine:
         """Compute per-domain risk scores (0–100, higher = more risk)."""
         # Domain feature indices
         domains = {
-            "memory":       [0, 1, 2, 3, 4, 18, 19, 23, 24, 25],
-            "reasoning":    [5, 6, 7, 8, 14, 15, 16, 26, 27],
+            "memory":       [0, 1, 2, 3, 4, 19, 20, 23, 24, 25],
+            "reasoning":    [5, 6, 7, 8, 14, 15, 16, 26],
             "visuospatial": [17, 26],
-            "language":     [9, 10, 11, 27],
-            "behavior":     [12, 13, 20, 21, 22, 28],
+            "language":     [9, 10, 11],
+            "behavior":     [12, 13, 18, 21, 22, 27, 28],
         }
         scores = {}
         for domain, indices in domains.items():

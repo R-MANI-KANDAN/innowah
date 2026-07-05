@@ -4,7 +4,7 @@ INNOWAH 2026 — Render ML Prediction API
 A lightweight Flask API that loads the trained INNOWAH model
 and serves predictions. Deployed on Render as a Web Service.
 
-Endpoints:
+End points:
   POST /predict        — accepts a 31-dim feature vector, returns risk prediction
   POST /predict_raw    — accepts raw software parameters, builds features internally
   GET  /health         — health check for Render monitoring
@@ -58,16 +58,16 @@ NORM_PARAMS = {
     "stride_variability":  (0.0,    10.0,  False),
     "turning_velocity":    (0.0,    200.0, True),
     "postural_sway":       (0.0,    10.0,  False),
+    "heart_rate":          (40.0,   120.0, True),
     "rmssd":               (0.0,    80.0,  True),
     "sdnn":                (0.0,    100.0, True),
     "lf_hf_ratio":         (0.0,    5.0,   False),
     "spo2":                (85.0,   100.0, True),
-    "desat_events":        (0.0,    10.0,  False),
     "alpha_power":         (0.0,    50.0,  True),
     "theta_power":         (0.0,    50.0,  False),
     "delta_power":         (0.0,    40.0,  False),
     "theta_alpha_ratio":   (0.0,    3.0,   False),
-    "dominant_frequency":  (5.0,    12.0,  True),
+    "skin_temp":           (28.0,   38.0,  True),
     "daily_steps":         (0.0,    10000, True),
     "reaction_time":       (200.0,  2000.0, False),
     "verbal_fluency":      (0.0,    30.0,  True),
@@ -103,6 +103,7 @@ def extract_features_from_raw(software_data: dict, hardware_data: dict = None) -
     imu = hw.get("imu", {})
     ppg = hw.get("ppg", {})
     eeg = hw.get("eeg", {})
+    temp = hw.get("temperature", {})
 
     # Software features [0–13]
     sw_vec = np.array([
@@ -128,16 +129,16 @@ def extract_features_from_raw(software_data: dict, hardware_data: dict = None) -
         _norm(_get(imu, "stride_variability",  2.5),  "stride_variability"),
         _norm(_get(imu, "turning_velocity",    130),  "turning_velocity"),
         _norm(_get(imu, "postural_sway",       2.0),  "postural_sway"),
+        _norm(_get(ppg, "heart_rate",          72),   "heart_rate"),
         _norm(_get(ppg, "rmssd",               35),   "rmssd"),
         _norm(_get(ppg, "sdnn",                45),   "sdnn"),
         _norm(_get(ppg, "lf_hf_ratio",         1.5),  "lf_hf_ratio"),
         _norm(_get(ppg, "spo2",                97),   "spo2"),
-        _norm(_get(ppg, "desat_events",        0),    "desat_events"),
         _norm(_get(eeg, "alpha_power",         30),   "alpha_power"),
         _norm(_get(eeg, "theta_power",         15),   "theta_power"),
         _norm(_get(eeg, "delta_power",         10),   "delta_power"),
         _norm(_get(eeg, "theta_alpha_ratio",   0.7),  "theta_alpha_ratio"),
-        _norm(_get(eeg, "dominant_frequency",  10.0), "dominant_frequency"),
+        _norm(_get(temp, "skin_temp",          34.0), "skin_temp"),
         _norm(_get(imu, "step_count",          5000), "daily_steps"),
     ], dtype=np.float32)
 
@@ -157,15 +158,16 @@ CLINICAL_RULES = [
     (15, "stride_variability",  0.70, 0.50, "higher_worse"),
     (16, "turning_velocity",    0.55, 0.40, "lower_worse"),
     (17, "postural_sway",       0.70, 0.50, "higher_worse"),
-    (18, "rmssd",               0.31, 0.19, "lower_worse"),
-    (19, "sdnn",                0.30, 0.20, "lower_worse"),
-    (20, "lf_hf_ratio",         0.80, 0.60, "higher_worse"),
-    (21, "spo2",                0.67, 0.47, "lower_worse"),
+    (18, "heart_rate",          0.40, 0.25, "lower_worse"),
+    (19, "rmssd",               0.31, 0.19, "lower_worse"),
+    (20, "sdnn",                0.30, 0.20, "lower_worse"),
+    (21, "lf_hf_ratio",         0.80, 0.60, "higher_worse"),
+    (22, "spo2",                0.67, 0.47, "lower_worse"),
     (23, "alpha_power",         0.50, 0.40, "lower_worse"),
     (24, "theta_power",         0.60, 0.50, "higher_worse"),
     (25, "delta_power",         0.63, 0.50, "higher_worse"),
     (26, "theta_alpha_ratio",   0.47, 0.57, "higher_worse"),
-    (27, "dominant_frequency",  0.57, 0.43, "lower_worse"),
+    (27, "skin_temp",           0.50, 0.30, "lower_worse"),
     (0,  "immediate_recall",    0.70, 0.50, "lower_worse"),
     (1,  "delayed_recall",      0.70, 0.50, "lower_worse"),
     (3,  "retention_ratio",     0.70, 0.50, "lower_worse"),
@@ -174,11 +176,11 @@ CLINICAL_RULES = [
 ]
 
 DOMAIN_INDICES = {
-    "memory":       [0, 1, 2, 3, 4, 18, 19, 23, 24, 25],
-    "reasoning":    [5, 6, 7, 8, 14, 15, 16, 26, 27],
+    "memory":       [0, 1, 2, 3, 4, 19, 20, 23, 24, 25],
+    "reasoning":    [5, 6, 7, 8, 14, 15, 16, 26],
     "visuospatial": [17, 26],
-    "language":     [9, 10, 11, 27],
-    "behavior":     [12, 13, 20, 21, 22, 28],
+    "language":     [9, 10, 11],
+    "behavior":     [12, 13, 18, 21, 22, 27, 28],
 }
 
 
@@ -286,7 +288,7 @@ def index():
 @app.route("/predict", methods=["POST"])
 def predict():
     """
-    Accepts a pre-computed 31-dim feature vector and returns risk prediction.
+    Primary endpoint for ML model prediction.
 
     Expected JSON:
     {
@@ -295,7 +297,7 @@ def predict():
     """
     data = request.get_json(force=True)
     if not data:
-        return jsonify({"status": "error", "message": "No JSON body"}), 400
+        return jsonify({"status": "error", "message": "No JSON payload provided"}), 400
 
     features = data.get("features")
     if not features or not isinstance(features, list):
